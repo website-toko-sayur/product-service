@@ -37,9 +37,9 @@ type Kafka struct {
 }
 
 type Topic struct {
-	ProductUpdateStockName string `json:"product_update_stock_name"`
-	ProductPublishName     string `json:"product_publish_name"`
-	ProductDelete          string `json:"product_delete"`
+	ProductUpdateStock string `json:"product_update_stock"`
+	ProductPublish     string `json:"product_publish"`
+	ProductDelete      string `json:"product_delete"`
 }
 
 type Minio struct {
@@ -101,9 +101,9 @@ func NewConfig() *Config {
 			ProducerEnabled:  viper.GetBool("KAFKA_PRODUCER_ENABLED"),
 		},
 		Topic: Topic{
-			ProductUpdateStockName: viper.GetString("TOPIC_PRODUCT_UPDATE_STOCK_NAME"),
-			ProductPublishName:     viper.GetString("TOPIC_PRODUCT_PUBLISH_NAME"),
-			ProductDelete:          viper.GetString("TOPIC_PRODUCT_DELETE"),
+			ProductUpdateStock: viper.GetString("TOPIC_PRODUCT_UPDATE_STOCK"),
+			ProductPublish:     viper.GetString("TOPIC_PRODUCT_PUBLISH"),
+			ProductDelete:      viper.GetString("TOPIC_PRODUCT_DELETE"),
 		},
 		Storage: Minio{
 			Endpoint:  viper.GetString("MINIO_ENDPOINT"),
