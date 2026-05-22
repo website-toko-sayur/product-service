@@ -14,9 +14,6 @@ type App struct {
 	LogLevel   string `json:"log_level"`
 
 	JwtSecretKey string `json:"jwt_secret_key"`
-	JwtIssuer    string `json:"jwt_issuer"`
-
-	UrlForgotPassword string `json:"url_forgot_password"`
 
 	GatewaySecretKey  string `json:"gateway_secret_key"`
 	RequestApiGAteway string `json:"request_api_gateway"`
@@ -37,6 +34,12 @@ type Kafka struct {
 	BootstrapServers []string `json:"kafka_bootstrap_servers"`
 	GroupID          string   `json:"kafka_group_id"`
 	ProducerEnabled  bool     `json:"kafka_producer_enabled"`
+}
+
+type Topic struct {
+	ProductUpdateStockName string `json:"product_update_stock_name"`
+	ProductPublishName     string `json:"product_publish_name"`
+	ProductDelete          string `json:"product_delete"`
 }
 
 type Minio struct {
@@ -62,6 +65,7 @@ type Config struct {
 	App           App           `json:"app"`
 	Psql          PsqlDB        `json:"psql"`
 	Kafka         Kafka         `json:"kafka"`
+	Topic         Topic         `json:"topic"`
 	Storage       Minio         `json:"storage"`
 	Redis         Redis         `json:"redis"`
 	ElasticSearch ElasticSearch `json:"elasticsearch"`
@@ -77,9 +81,6 @@ func NewConfig() *Config {
 			LogLevel:   viper.GetString("LOG_LEVEL"),
 
 			JwtSecretKey: viper.GetString("JWT_SECRET_KEY"),
-			JwtIssuer:    viper.GetString("JWT_ISSUER"),
-
-			UrlForgotPassword: viper.GetString("URL_FORGOT_PASSWORD"),
 
 			GatewaySecretKey:  viper.GetString("GATEWAY_SECRET_KEY"),
 			RequestApiGAteway: viper.GetString("REQUEST_API_GATEWAY"),
@@ -98,6 +99,11 @@ func NewConfig() *Config {
 			BootstrapServers: strings.Split(viper.GetString("KAFKA_BOOTSTRAP_SERVERS"), ","),
 			GroupID:          viper.GetString("KAFKA_GROUP_ID"),
 			ProducerEnabled:  viper.GetBool("KAFKA_PRODUCER_ENABLED"),
+		},
+		Topic: Topic{
+			ProductUpdateStockName: viper.GetString("TOPIC_PRODUCT_UPDATE_STOCK_NAME"),
+			ProductPublishName:     viper.GetString("TOPIC_PRODUCT_PUBLISH_NAME"),
+			ProductDelete:          viper.GetString("TOPIC_PRODUCT_DELETE"),
 		},
 		Storage: Minio{
 			Endpoint:  viper.GetString("MINIO_ENDPOINT"),
