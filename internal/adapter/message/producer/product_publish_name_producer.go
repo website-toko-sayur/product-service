@@ -1,4 +1,4 @@
-package message
+package messageproducer
 
 import (
 	"product-service/config"

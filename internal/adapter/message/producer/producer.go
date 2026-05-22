@@ -1,4 +1,4 @@
-package message
+package messageproducer
 
 import (
 	"encoding/json"
