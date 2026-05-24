@@ -189,7 +189,6 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 }
 
 func (p *productRepository) Create(ctx context.Context, req entity.ProductEntity) (int64, error) {
-
 	tx := p.db.WithContext(ctx).Begin()
 
 	modelProduct := model.Product{
@@ -274,4 +273,87 @@ func (p *productRepository) Create(ctx context.Context, req entity.ProductEntity
 		Msg("success create product")
 
 	return modelProduct.ID, nil
+}
+
+func (p *productRepository) GetByID(ctx context.Context, productID int64) (*entity.ProductEntity, error) {
+	modelProduct := model.Product{}
+
+	err := p.db.WithContext(ctx).Preload("Category").First(&modelProduct, "id = ?", productID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Error().
+				Int64("product_id", productID).
+				Str("source", "internal.adapter.productRepository.GetByID").
+				Msg("product not found")
+
+			return nil, errors.New("404")
+		}
+
+		log.Error().
+			Err(err).
+			Int64("product_id", productID).
+			Str("source", "internal.adapter.productRepository.GetByID").
+			Msg("failed get product")
+
+		return nil, err
+	}
+
+	modelParent := []model.Product{}
+
+	err = p.db.WithContext(ctx).Preload("Category").Where("parent_id = ?", modelProduct.ID).Find(&modelParent).Error
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("product_id", productID).
+			Str("source", "internal.adapter.productRepository.GetByID").
+			Msg("failed get child products")
+
+		return nil, err
+	}
+
+	childEntities := []entity.ProductEntity{}
+
+	for _, val := range modelParent {
+		childEntities = append(childEntities, entity.ProductEntity{
+			ID:           val.ID,
+			CategorySlug: val.CategorySlug,
+			ParentID:     val.ParentID,
+			Name:         val.Name,
+			Image:        val.Image,
+			Description:  val.Description,
+			RegulerPrice: val.RegulerPrice,
+			SalePrice:    val.SalePrice,
+			Unit:         val.Unit,
+			Weight:       val.Weight,
+			Stock:        val.Stock,
+			Variant:      val.Variant,
+			Status:       val.Status,
+			CategoryName: val.Category.Name,
+			CreatedAt:    val.CreatedAt,
+		})
+	}
+
+	log.Info().
+		Int64("product_id", productID).
+		Str("source", "internal.adapter.productRepository.GetByID").
+		Msg("success get product")
+
+	return &entity.ProductEntity{
+		ID:           modelProduct.ID,
+		CategorySlug: modelProduct.CategorySlug,
+		ParentID:     modelProduct.ParentID,
+		Name:         modelProduct.Name,
+		Image:        modelProduct.Image,
+		Description:  modelProduct.Description,
+		RegulerPrice: modelProduct.RegulerPrice,
+		SalePrice:    modelProduct.SalePrice,
+		Unit:         modelProduct.Unit,
+		Weight:       modelProduct.Weight,
+		Stock:        modelProduct.Stock,
+		Variant:      modelProduct.Variant,
+		Status:       modelProduct.Status,
+		CategoryName: modelProduct.Category.Name,
+		Child:        childEntities,
+		CreatedAt:    modelProduct.CreatedAt,
+	}, nil
 }
