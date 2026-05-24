@@ -57,36 +57,5 @@ func (p *productRepository) Delete(ctx context.Context, productID int64) error {
 		return err
 	}
 
-	// delete document di elasticsearch
-	// res, err := p.esClient.Delete(
-	// 	"products",
-	// 	strconv.Itoa(int(productID)),
-	// 	p.esClient.Delete.WithRefresh("true"),
-	// )
-	// if err != nil {
-	// 	log.Error().
-	// 		Err(err).
-	// 		Int64("product_id", productID).
-	// 		Str("source", "internal.adapter.productRepository.Delete").
-	// 		Msg("failed to delete product from elasticsearch")
-	// 	return err
-	// }
-
-	// defer res.Body.Close()
-	// if res.IsError() {
-	// 	log.Error().
-	// 		Str("status", res.Status()).
-	// 		Int64("product_id", productID).
-	// 		Str("source", "internal.adapter.productRepository.Delete").
-	// 		Msg("elasticsearch returned error response")
-
-	// 	return errors.New("failed delete product from elasticsearch")
-	// }
-
-	// log.Info().
-	// 	Int64("product_id", productID).
-	// 	Str("source", "internal.adapter.productRepository.Delete").
-	// 	Msg("success delete product from elasticsearch")
-
 	return nil
 }
