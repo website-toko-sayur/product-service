@@ -55,8 +55,16 @@ func RunProductDeleteConsumer(cfg *config.Config, ctx context.Context) {
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product delete consumer")
 
+	esClient, err := cfg.NewElastic()
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Str("source", "internal.app.RunWorker").
+			Msg("failed initialize elasticsearch client")
+	}
+
 	productDeleteConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(cfg)
+	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(cfg, esClient)
 	messagingconsumer.ConsumeTopic(ctx, productDeleteConsumerGroup, cfg.Topic.ProductDelete, productDeleteHandler.Consume)
 }
 
