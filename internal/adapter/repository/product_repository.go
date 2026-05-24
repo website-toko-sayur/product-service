@@ -60,10 +60,14 @@ func (p *productRepository) Delete(ctx context.Context, productID int64) error {
 }
 
 func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity) error {
+	tx := p.db.WithContext(ctx).Begin()
+
 	modelProduct := model.Product{}
 
-	err := p.db.Where("id = ?", req.ID).First(&modelProduct).Error
+	err := tx.Where("id = ?", req.ID).First(&modelProduct).Error
 	if err != nil {
+		tx.Rollback()
+
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Error().
 				Int64("product_id", req.ID).
@@ -95,8 +99,10 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 	modelProduct.Variant = req.Variant
 	modelProduct.Status = req.Status
 
-	err = p.db.Save(&modelProduct).Error
+	err = tx.Save(&modelProduct).Error
 	if err != nil {
+		tx.Rollback()
+
 		log.Error().
 			Err(err).
 			Int64("product_id", req.ID).
@@ -110,8 +116,10 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 		// hapus seluruh child product lama berdasarkan parent_id
 		// supaya data variant/child sebelumnya tidak duplicate
 		// dan akan diganti dengan data child terbaru dari request
-		err = p.db.Where("parent_id = ?", modelProduct.ID).Delete(&model.Product{}).Error
+		err = tx.Where("parent_id = ?", modelProduct.ID).Delete(&model.Product{}).Error
 		if err != nil {
+			tx.Rollback()
+
 			log.Error().
 				Err(err).
 				Int64("product_id", req.ID).
@@ -145,8 +153,10 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 		}
 
 		// insert ulang seluruh child product baru ke database
-		err = p.db.Create(&modelProductChild).Error
+		err = tx.Create(&modelProductChild).Error
 		if err != nil {
+			tx.Rollback()
+
 			log.Error().
 				Err(err).
 				Int64("product_id", req.ID).
@@ -157,10 +167,111 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 		}
 	}
 
+	err = tx.Commit().Error
+	if err != nil {
+		tx.Rollback()
+
+		log.Error().
+			Err(err).
+			Int64("product_id", req.ID).
+			Str("source", "internal.adapter.productRepository.Update").
+			Msg("failed commit update product transaction")
+
+		return err
+	}
+
 	log.Info().
 		Int64("product_id", req.ID).
 		Str("source", "internal.adapter.productRepository.Update").
 		Msg("success update product")
 
 	return nil
+}
+
+func (p *productRepository) Create(ctx context.Context, req entity.ProductEntity) (int64, error) {
+
+	tx := p.db.WithContext(ctx).Begin()
+
+	modelProduct := model.Product{
+		CategorySlug: req.CategorySlug,
+		ParentID:     req.ParentID,
+		Name:         req.Name,
+		Image:        req.Image,
+		Description:  req.Description,
+		RegulerPrice: req.RegulerPrice,
+		SalePrice:    req.SalePrice,
+		Unit:         req.Unit,
+		Weight:       req.Weight,
+		Stock:        req.Stock,
+		Variant:      req.Variant,
+		Status:       req.Status,
+	}
+
+	err := tx.Create(&modelProduct).Error
+	if err != nil {
+		tx.Rollback()
+
+		log.Error().
+			Err(err).
+			Str("product_name", req.Name).
+			Str("source", "internal.adapter.productRepository.Create").
+			Msg("failed create product")
+
+		return 0, err
+	}
+
+	if len(req.Child) > 0 {
+
+		// build child products from request
+		modelProductChild := []model.Product{}
+
+		for _, val := range req.Child {
+			modelProductChild = append(modelProductChild, model.Product{
+				CategorySlug: req.CategorySlug,
+				ParentID:     &modelProduct.ID,
+				Name:         req.Name,
+				Image:        val.Image,
+				Description:  req.Description,
+				RegulerPrice: val.RegulerPrice,
+				SalePrice:    val.SalePrice,
+				Unit:         req.Unit,
+				Weight:       val.Weight,
+				Stock:        val.Stock,
+				Variant:      req.Variant,
+				Status:       req.Status,
+			})
+		}
+
+		err = tx.Create(&modelProductChild).Error
+		if err != nil {
+			tx.Rollback()
+
+			log.Error().
+				Err(err).
+				Int64("product_id", modelProduct.ID).
+				Str("source", "internal.adapter.productRepository.Create").
+				Msg("failed create child products")
+
+			return 0, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.Create").
+			Msg("failed commit create product transaction")
+
+		return 0, err
+	}
+
+	log.Info().
+		Int64("product_id", modelProduct.ID).
+		Str("product_name", modelProduct.Name).
+		Str("source", "internal.adapter.productRepository.Create").
+		Msg("success create product")
+
+	return modelProduct.ID, nil
 }
