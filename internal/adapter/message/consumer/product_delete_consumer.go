@@ -29,6 +29,7 @@ func (c ProductDeleteConsumer) Consume(message *sarama.ConsumerMessage) error {
 		return err
 	}
 
+	// TODO process event
 	log.Info().
 		Int32("partition", message.Partition).
 		Interface("event", DeleteProductEvent).
