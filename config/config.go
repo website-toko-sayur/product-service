@@ -58,7 +58,9 @@ type Redis struct {
 }
 
 type ElasticSearch struct {
-	Host string `json:"host"`
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type Config struct {
@@ -119,7 +121,9 @@ func NewConfig() *Config {
 			Password: viper.GetString("REDIS_PASSWORD"),
 		},
 		ElasticSearch: ElasticSearch{
-			Host: viper.GetString("ELASTICSEARCH_HOST"),
+			Host:     viper.GetString("ELASTICSEARCH_HOST"),
+			Username: viper.GetString("ELASTICSEARCH_USERNAME"),
+			Password: viper.GetString("ELASTICSEARCH_PASSWORD"),
 		},
 	}
 }

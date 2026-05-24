@@ -66,6 +66,7 @@ require (
 
 require (
 	github.com/IBM/sarama v1.49.0
+	github.com/elastic/go-elasticsearch/v7 v7.17.10
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/gofiber/fiber/v3 v3.2.0
 	github.com/jinzhu/inflection v1.0.0 // indirect
