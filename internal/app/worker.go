@@ -73,7 +73,15 @@ func RunProductPublishConsumer(cfg *config.Config, ctx context.Context) {
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product publish consumer")
 
+	esClient, err := cfg.NewElastic()
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Str("source", "internal.app.RunWorker").
+			Msg("failed initialize elasticsearch client")
+	}
+
 	productPublishConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productPublishHandler := messagingconsumer.NewProductPublishConsumer(cfg)
+	productPublishHandler := messagingconsumer.NewProductPublishConsumer(cfg, esClient)
 	messagingconsumer.ConsumeTopic(ctx, productPublishConsumerGroup, cfg.Topic.ProductDelete, productPublishHandler.Consume)
 }

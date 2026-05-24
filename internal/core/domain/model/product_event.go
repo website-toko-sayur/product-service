@@ -1,6 +1,7 @@
 package model
 
 import (
+	"product-service/internal/core/domain/entity"
 	"strconv"
 	"time"
 )
@@ -30,6 +31,33 @@ type ProductEvent struct {
 	CategoryName string         `json:"category_name"`
 	Child        []ProductEvent `json:"child"`
 	CreatedAt    time.Time      `json:"created_at"`
+}
+
+func MapProductChildren(children []entity.ProductEntity) []ProductEvent {
+	result := make([]ProductEvent, 0, len(children))
+
+	for _, child := range children {
+		result = append(result, ProductEvent{
+			ID:           child.ID,
+			CategorySlug: child.CategorySlug,
+			ParentID:     child.ParentID,
+			Name:         child.Name,
+			Image:        child.Image,
+			Description:  child.Description,
+			RegulerPrice: child.RegulerPrice,
+			SalePrice:    child.SalePrice,
+			Unit:         child.Unit,
+			Weight:       child.Weight,
+			Stock:        child.Stock,
+			Variant:      child.Variant,
+			Status:       child.Status,
+			CategoryName: child.CategoryName,
+			Child:        []ProductEvent{},
+			CreatedAt:    child.CreatedAt,
+		})
+	}
+
+	return result
 }
 
 func (u *ProductEvent) GetId() string {
