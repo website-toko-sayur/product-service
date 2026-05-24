@@ -2,29 +2,38 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/domain/model"
+	"strings"
 
+	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
 type productRepository struct {
-	db *gorm.DB
+	db       *gorm.DB
+	esClient *elasticsearch.Client
 }
 
 type ProductRepositoryInterface interface {
-	// GetAll(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error)
-	// GetByID(ctx context.Context, productID int64) (*entity.ProductEntity, error)
-	// Create(ctx context.Context, req entity.ProductEntity) (int64, error)
+	GetAll(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error)
+	GetByID(ctx context.Context, productID int64) (*entity.ProductEntity, error)
+	Create(ctx context.Context, req entity.ProductEntity) (int64, error)
 	Update(ctx context.Context, req entity.ProductEntity) error
 	Delete(ctx context.Context, productID int64) error
-	// SearchProducts(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error)
+	SearchProducts(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error)
 }
 
-func NewProductRepository(db *gorm.DB) ProductRepositoryInterface {
-	return &productRepository{db: db}
+func NewProductRepository(db *gorm.DB, esClient *elasticsearch.Client) ProductRepositoryInterface {
+	return &productRepository{
+		db:       db,
+		esClient: esClient,
+	}
 }
 
 func (p *productRepository) Delete(ctx context.Context, productID int64) error {
@@ -356,4 +365,361 @@ func (p *productRepository) GetByID(ctx context.Context, productID int64) (*enti
 		Child:        childEntities,
 		CreatedAt:    modelProduct.CreatedAt,
 	}, nil
+}
+
+/*
+## contoh request
+
+	query := entity.QueryStringProduct{
+		Page:         1,
+		Limit:        10,
+		OrderBy:      "created_at",
+		OrderType:    "desc",
+		CategorySlug: "electronics",
+		StartPrice:   100000,
+		EndPrice:     5000000,
+		Search:       "iphone",
+	}
+
+## mainquery nya
+
+	{
+	  "from": 0,
+	  "size": 10,
+	  "query": {
+	    "bool": {
+	      "must": [
+	        {
+	          "multi_match": {
+	            "query": "iphone",
+	            "fields": [
+	              "name",
+	              "description",
+	              "category_name"
+	            ]
+	          }
+	        }
+	      ],
+	      "filter": [
+	        {
+	          "term": {
+	            "category_slug.keyword": "electronics"
+	          }
+	        },
+	        {
+	          "range": {
+	            "reguler_price": {
+	              "gte": 100000,
+	              "lte": 5000000
+	            }
+	          }
+	        }
+	      ]
+	    }
+	  },
+	  "sort": [
+	    {
+	      "created_at": "desc"
+	    }
+	  ]
+	}
+*/
+func (p *productRepository) SearchProducts(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error) {
+
+	var mainQueries []string
+	var filterQueries []string
+
+	// hitung offset pagination elasticsearch
+	from := (query.Page - 1) * query.Limit
+
+	// validate sortable fields supaya user tidak bisa inject field random
+	allowedSortFields := map[string]bool{
+		"id":            true,
+		"name":          true,
+		"created_at":    true,
+		"reguler_price": true,
+		"sale_price":    true,
+		"stock":         true,
+	}
+
+	// gunakan whitelist field untuk sorting
+	// fallback ke "id" jika field tidak valid
+	sortField := "id"
+
+	if allowedSortFields[query.OrderBy] {
+		sortField = query.OrderBy
+	}
+
+	// determine sort order
+	sortOrder := "asc"
+
+	if strings.ToLower(query.OrderType) == "desc" {
+		sortOrder = "desc"
+	}
+
+	sortQuery := fmt.Sprintf(`{ "%s": "%s" }`, sortField, sortOrder)
+
+	if query.CategorySlug != "" {
+		filterQueries = append(
+			filterQueries,
+			fmt.Sprintf(
+				`{ "term": { "category_slug.keyword": "%s" } }`,
+				query.CategorySlug,
+			),
+		)
+	}
+
+	if query.StartPrice > 0 && query.EndPrice > 0 {
+		filterQueries = append(
+			filterQueries,
+			fmt.Sprintf(
+				`{ "range": { "reguler_price": { "gte": %d, "lte": %d } } }`,
+				query.StartPrice,
+				query.EndPrice,
+			),
+		)
+	}
+
+	if query.Search != "" {
+		filterQueries = append(
+			mainQueries,
+			fmt.Sprintf(
+				`{
+					"multi_match": {
+						"query": %q,
+						"fields": ["name", "description", "category_name"]
+					}
+				}`,
+				query.Search,
+			),
+		)
+	}
+
+	mainQuery := fmt.Sprintf(`{
+		"from": %d,
+		"size": %d,
+		"query": {
+			"bool": {
+				"must": [
+					%s
+				],
+				"filter": [
+					%s
+				]
+			}
+		},
+		"sort": [
+			%s
+		]
+	}`,
+		from,
+		query.Limit,
+		strings.Join(mainQueries, ","),
+		strings.Join(filterQueries, ","),
+		sortQuery,
+	)
+
+	res, err := p.esClient.Search(
+		p.esClient.Search.WithContext(ctx),
+		p.esClient.Search.WithIndex("products"),
+		p.esClient.Search.WithBody(strings.NewReader(mainQuery)),
+	)
+
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("failed search products from elasticsearch")
+
+		return nil, 0, 0, err
+	}
+
+	defer res.Body.Close()
+
+	if res.IsError() {
+		err = errors.New(res.String())
+
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("elasticsearch returned search error")
+
+		return nil, 0, 0, err
+	}
+
+	var result map[string]interface{}
+
+	err = json.NewDecoder(res.Body).Decode(&result)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("failed decode elasticsearch response")
+
+		return nil, 0, 0, err
+	}
+
+	hitsRoot, ok := result["hits"].(map[string]interface{})
+	if !ok {
+		log.Error().
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("invalid hits response from elasticsearch")
+
+		return nil, 0, 0, errors.New("invalid elasticsearch response")
+	}
+
+	totalData := 0
+
+	totalMap, ok := hitsRoot["total"].(map[string]interface{})
+	if ok {
+		value, ok := totalMap["value"].(float64)
+		if ok {
+			totalData = int(value)
+		}
+	}
+
+	totalPage := 0
+
+	if query.Limit > 0 {
+		totalPage = int(math.Ceil(
+			float64(totalData) / float64(query.Limit),
+		))
+	}
+
+	hits, ok := hitsRoot["hits"].([]interface{})
+	if !ok {
+		log.Error().
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("invalid hits data from elasticsearch")
+
+		return nil, 0, 0, errors.New("invalid elasticsearch hits")
+	}
+
+	products := []entity.ProductEntity{}
+
+	for _, hit := range hits {
+
+		hitMap, ok := hit.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		source, ok := hitMap["_source"]
+		if !ok {
+			continue
+		}
+
+		data, err := json.Marshal(source)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("source", "internal.adapter.productRepository.SearchProducts").
+				Msg("failed marshal product search source")
+
+			continue
+		}
+
+		var product entity.ProductEntity
+
+		err = json.Unmarshal(data, &product)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("source", "internal.adapter.productRepository.SearchProducts").
+				Msg("failed unmarshal product search result")
+
+			continue
+		}
+
+		products = append(products, product)
+	}
+
+	log.Info().
+		Int("total_data", totalData).
+		Int("total_page", totalPage).
+		Int("result_count", len(products)).
+		Str("source", "internal.adapter.productRepository.SearchProducts").
+		Msg("success search products")
+
+	return products, int64(totalData), int64(totalPage), nil
+}
+
+func (p *productRepository) GetAll(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error) {
+	modelProducts := []model.Product{}
+	var countData int64
+
+	order := fmt.Sprintf("%s %s", query.OrderBy, query.OrderType)
+	offset := (query.Page - 1) * query.Limit
+	defaultStatus := "ACTIVE"
+	if query.Status != "" {
+		defaultStatus = query.Status
+	}
+	sqlMain := p.db.Preload("Category").
+		Where("parent_id IS NULL AND status = ?", defaultStatus).
+		Where("name ILIKE ? OR description ILIKE ? OR category_slug ILIKE ?", "%"+query.Search+"%", "%"+query.Search+"%", "%"+query.Search+"%")
+	if query.CategorySlug != "" {
+		sqlMain = sqlMain.Where("category_slug = ?", query.CategorySlug)
+	}
+
+	if query.StartPrice > 0 {
+		sqlMain = sqlMain.Where("sale_price >= ?", query.StartPrice)
+	}
+
+	if query.EndPrice > 0 {
+		sqlMain = sqlMain.Where("sale_price <= ?", query.EndPrice)
+	}
+
+	if err := sqlMain.Model(&modelProducts).Count(&countData).Error; err != nil {
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.GetAll").
+			Msg("failed count products")
+		return nil, 0, 0, err
+	}
+
+	totalPage := int(math.Ceil(float64(countData) / float64(query.Limit)))
+	if err := sqlMain.Order(order).Limit(int(query.Limit)).Offset(int(offset)).Find(&modelProducts).Error; err != nil {
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.GetAll").
+			Msg("failed get products")
+		return nil, 0, 0, err
+	}
+
+	if len(modelProducts) == 0 {
+		log.Warn().
+			Str("source", "internal.adapter.productRepository.GetAll").
+			Msg("products not found")
+		return nil, 0, 0, errors.New("404")
+	}
+
+	respProducts := []entity.ProductEntity{}
+	for _, val := range modelProducts {
+		respProducts = append(respProducts, entity.ProductEntity{
+			ID:           val.ID,
+			CategorySlug: val.CategorySlug,
+			ParentID:     val.ParentID,
+			Name:         val.Name,
+			Image:        val.Image,
+			Description:  val.Description,
+			RegulerPrice: val.RegulerPrice,
+			SalePrice:    val.SalePrice,
+			Unit:         val.Unit,
+			Weight:       val.Weight,
+			Stock:        val.Stock,
+			Variant:      val.Variant,
+			Status:       val.Status,
+			CategoryName: val.Category.Name,
+			CreatedAt:    val.CreatedAt,
+		})
+	}
+
+	log.Info().
+		Int64("total_data", countData).
+		Int("total_page", totalPage).
+		Int("result_count", len(respProducts)).
+		Str("source", "internal.adapter.productRepository.GetAll").
+		Msg("success get products")
+
+	return respProducts, countData, int64(totalPage), nil
 }
