@@ -93,11 +93,11 @@ func (p *productService) Create(ctx context.Context, req entity.ProductEntity) e
 				Str("source", "internal.core.productService.Create").
 				Msg("Failed publish product publish event")
 			return fiber.ErrInternalServerError
-		} else {
-			log.Info().
-				Str("source", "internal.core.productService.Create").
-				Msg("Kafka producer is disabled, skipping product publish event")
 		}
+	} else {
+		log.Info().
+			Str("source", "internal.core.productService.Create").
+			Msg("Kafka producer is disabled, skipping product publish event")
 	}
 
 	return nil
@@ -127,11 +127,11 @@ func (p *productService) Delete(ctx context.Context, productID int64) error {
 				Str("source", "internal.core.productService.Delete").
 				Msg("Failed publish product delete event")
 			return fiber.ErrInternalServerError
-		} else {
-			log.Info().
-				Str("source", "internal.core.productService.Delete").
-				Msg("Kafka producer is disabled, skipping product delete event")
 		}
+	} else {
+		log.Info().
+			Str("source", "internal.core.productService.Delete").
+			Msg("Kafka producer is disabled, skipping product delete event")
 	}
 
 	return nil
@@ -224,11 +224,11 @@ func (p *productService) Update(ctx context.Context, req entity.ProductEntity) e
 				Str("source", "internal.core.productService.Update").
 				Msg("Failed publish product publihs event")
 			return fiber.ErrInternalServerError
-		} else {
-			log.Info().
-				Str("source", "internal.core.productService.Update").
-				Msg("Kafka producer is disabled, skipping product publish event")
 		}
+	} else {
+		log.Info().
+			Str("source", "internal.core.productService.Update").
+			Msg("Kafka producer is disabled, skipping product publish event")
 	}
 
 	return nil
