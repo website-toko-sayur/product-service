@@ -30,6 +30,7 @@ func (cfg Config) NewKafkaConsumerGroup() sarama.ConsumerGroup {
 	}
 
 	log.Info().
+		Str("source", "config.NewKafkaConsumerGroup").
 		Strs("brokers", brokers).
 		Str("group_id", groupID).
 		Msg("Kafka consumer group connected")

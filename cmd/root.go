@@ -10,13 +10,12 @@ import (
 
 var cfgFile string
 
-// root jalan, otomatis jalanin startCmd & workerCmd
+// root jalan, otomatis jalanin startCmd
 var rootCmd = &cobra.Command{
 	Use:   "sayur-api",
 	Short: "veggo-product-service",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Run(startCmd, nil)
-		cmd.Run(workerCmd, nil)
 	},
 }
 

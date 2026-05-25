@@ -34,6 +34,15 @@ func RunServer() {
 			Msg("failed connect postgres")
 	}
 
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Str("source", "internal.app.RunServer").
+			Msg("failed get sql db instance")
+	}
+	defer sqlDB.Close()
+
 	minio, err := cfg.NewMinio()
 	if err != nil {
 		log.Fatal().
@@ -49,6 +58,7 @@ func RunServer() {
 			Str("source", "internal.app.RunServer").
 			Msg("failed connect to redis")
 	}
+	defer redis.Close()
 
 	opensearch, err := cfg.NewOpenSearch()
 	if err != nil {
@@ -87,6 +97,7 @@ func RunServer() {
 	)
 
 	app := cfg.NewFiber()
+
 	app.Use(fiberRecover.New())
 	app.Use(fiberCors.New())
 	app.Use(middlewareGateway.GatewayValidationMiddleware(cfg))
@@ -127,15 +138,15 @@ func RunServer() {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
+	terminateSignals := make(chan os.Signal, 1)
 
 	signal.Notify(
-		quit,
+		terminateSignals,
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
 
-	<-quit
+	<-terminateSignals
 
 	log.Info().
 		Str("source", "internal.app.RunServer").

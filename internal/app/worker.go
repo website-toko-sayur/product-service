@@ -6,9 +6,10 @@ import (
 	"os/signal"
 	"product-service/config"
 	messagingconsumer "product-service/internal/adapter/message/consumer"
+	"sync"
 	"syscall"
-	"time"
 
+	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,71 +18,99 @@ func RunWorker() {
 
 	config.NewLogger(cfg.App.AppEnv, cfg.App.LogLevel, cfg.App.AppName)
 
+	opensearchClient, err := cfg.NewOpenSearch()
+	if err != nil {
+		log.Fatal().
+			Err(err).
+			Str("source", "internal.app.RunWorker").
+			Msg("failed initialize opensearch client")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go RunProductDeleteConsumer(cfg, ctx)
-	go RunProductPublishConsumer(cfg, ctx)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go RunProductDeleteConsumer(cfg, ctx, &wg, opensearchClient)
+	go RunProductPublishConsumer(cfg, ctx, &wg, opensearchClient)
 
 	terminateSignals := make(chan os.Signal, 1)
-	signal.Notify(terminateSignals, syscall.SIGINT, syscall.SIGTERM)
 
-	stop := false
-	for !stop {
-		select {
-		case s := <-terminateSignals:
-			log.Info().
-				Str("signal", s.String()).
-				Str("source", "internal.app.RunWorker").
-				Msg("got stop signal, shutting down worker gracefully")
+	signal.Notify(
+		terminateSignals,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
 
-			cancel()
-			stop = true
+	select {
+	case s := <-terminateSignals:
+		log.Info().
+			Str("signal", s.String()).
+			Str("source", "internal.app.RunWorker").
+			Msg("got stop signal, shutting down worker gracefully")
 
-		case <-ctx.Done():
-			log.Info().
-				Str("source", "internal.app.RunWorker").
-				Msg("context cancelled")
+		cancel()
 
-			stop = true
-		}
+	case <-ctx.Done():
+		log.Info().
+			Str("source", "internal.app.RunWorker").
+			Msg("worker context cancelled")
 	}
 
-	time.Sleep(5 * time.Second) // wait for all consumers to finish processing
+	log.Info().
+		Str("source", "internal.app.RunWorker").
+		Msg("waiting all consumers to stop")
+
+	wg.Wait()
+
+	log.Info().
+		Str("source", "internal.app.RunWorker").
+		Msg("all consumers stopped gracefully")
 }
 
-func RunProductDeleteConsumer(cfg *config.Config, ctx context.Context) {
+func RunProductDeleteConsumer(cfg *config.Config, ctx context.Context, wg *sync.WaitGroup, opensearchClient *opensearch.Client) {
+	defer wg.Done()
+
 	log.Info().
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product delete consumer")
 
-	opensearchClient, err := cfg.NewOpenSearch()
-	if err != nil {
-		log.Fatal().
-			Err(err).
-			Str("source", "internal.app.RunWorker").
-			Msg("failed initialize elasticsearch client")
-	}
-
 	productDeleteConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(cfg, opensearchClient)
-	messagingconsumer.ConsumeTopic(ctx, productDeleteConsumerGroup, cfg.Topic.ProductDelete, productDeleteHandler.Consume)
+	defer productDeleteConsumerGroup.Close()
+
+	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(
+		cfg,
+		opensearchClient,
+	)
+
+	messagingconsumer.ConsumeTopic(
+		ctx,
+		productDeleteConsumerGroup,
+		cfg.Topic.ProductDelete,
+		productDeleteHandler.Consume,
+	)
 }
 
-func RunProductPublishConsumer(cfg *config.Config, ctx context.Context) {
+func RunProductPublishConsumer(cfg *config.Config, ctx context.Context, wg *sync.WaitGroup, opensearchClient *opensearch.Client) {
+	defer wg.Done()
+
 	log.Info().
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product publish consumer")
 
-	opensearchClient, err := cfg.NewOpenSearch()
-	if err != nil {
-		log.Fatal().
-			Err(err).
-			Str("source", "internal.app.RunWorker").
-			Msg("failed initialize elasticsearch client")
-	}
-
 	productPublishConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productPublishHandler := messagingconsumer.NewProductPublishConsumer(cfg, opensearchClient)
-	messagingconsumer.ConsumeTopic(ctx, productPublishConsumerGroup, cfg.Topic.ProductDelete, productPublishHandler.Consume)
+	defer productPublishConsumerGroup.Close()
+
+	productPublishHandler := messagingconsumer.NewProductPublishConsumer(
+		cfg,
+		opensearchClient,
+	)
+
+	messagingconsumer.ConsumeTopic(
+		ctx,
+		productPublishConsumerGroup,
+		cfg.Topic.ProductPublish,
+		productPublishHandler.Consume,
+	)
 }

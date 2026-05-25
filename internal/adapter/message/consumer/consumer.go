@@ -56,13 +56,11 @@ func ConsumeTopic(ctx context.Context, consumerGroup sarama.ConsumerGroup, topic
 				log.Error().
 					Err(err).
 					Str("source", "internal.adapter.message.Consumer.ConsumeTopic").
+					Str("topic", topic).
 					Msg("Error from consumer")
 			}
 
 			if ctx.Err() != nil {
-				log.Info().
-					Str("source", "internal.adapter.message.Consumer.ConsumeTopic").
-					Msg("Context cancelled, stopping consumer")
 				return
 			}
 		}
