@@ -57,20 +57,20 @@ type Redis struct {
 	Password string `json:"password"`
 }
 
-type ElasticSearch struct {
+type OpenSearch struct {
 	Host     string `json:"host"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 type Config struct {
-	App           App           `json:"app"`
-	Psql          PsqlDB        `json:"psql"`
-	Kafka         Kafka         `json:"kafka"`
-	Topic         Topic         `json:"topic"`
-	Storage       Minio         `json:"storage"`
-	Redis         Redis         `json:"redis"`
-	ElasticSearch ElasticSearch `json:"elasticsearch"`
+	App        App        `json:"app"`
+	Psql       PsqlDB     `json:"psql"`
+	Kafka      Kafka      `json:"kafka"`
+	Topic      Topic      `json:"topic"`
+	Storage    Minio      `json:"storage"`
+	Redis      Redis      `json:"redis"`
+	OpenSearch OpenSearch `json:"opensearch"`
 }
 
 func NewConfig() *Config {
@@ -120,10 +120,10 @@ func NewConfig() *Config {
 			Port:     viper.GetString("REDIS_PORT"),
 			Password: viper.GetString("REDIS_PASSWORD"),
 		},
-		ElasticSearch: ElasticSearch{
-			Host:     viper.GetString("ELASTICSEARCH_HOST"),
-			Username: viper.GetString("ELASTICSEARCH_USERNAME"),
-			Password: viper.GetString("ELASTICSEARCH_PASSWORD"),
+		OpenSearch: OpenSearch{
+			Host:     viper.GetString("OPENSEARCH_HOST"),
+			Username: viper.GetString("OPENSEARCH_USERNAME"),
+			Password: viper.GetString("OPENSEARCH_PASSWORD"),
 		},
 	}
 }

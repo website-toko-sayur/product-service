@@ -9,11 +9,14 @@ import (
 )
 
 var cfgFile string
+
+// root jalan, otomatis jalanin startCmd & workerCmd
 var rootCmd = &cobra.Command{
 	Use:   "sayur-api",
 	Short: "veggo-product-service",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Run(startCmd, nil)
+		cmd.Run(workerCmd, nil)
 	},
 }
 
@@ -27,7 +30,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is .env)")
 
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
 }
 
 func initConfig() {

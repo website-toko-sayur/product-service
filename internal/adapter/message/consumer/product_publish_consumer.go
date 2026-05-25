@@ -9,19 +9,19 @@ import (
 	"product-service/internal/core/domain/model"
 
 	"github.com/IBM/sarama"
-	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/rs/zerolog/log"
 )
 
 type ProductPublishConsumer struct {
-	cfg      *config.Config
-	esClient *elasticsearch.Client
+	cfg              *config.Config
+	opensearchClient *opensearch.Client
 }
 
-func NewProductPublishConsumer(cfg *config.Config, esClient *elasticsearch.Client) *ProductPublishConsumer {
+func NewProductPublishConsumer(cfg *config.Config, opensearchClient *opensearch.Client) *ProductPublishConsumer {
 	return &ProductPublishConsumer{
-		cfg:      cfg,
-		esClient: esClient,
+		cfg:              cfg,
+		opensearchClient: opensearchClient,
 	}
 }
 
@@ -43,7 +43,7 @@ func (c ProductPublishConsumer) Consume(message *sarama.ConsumerMessage) error {
 		Str("source", "internal.adapter.message.ProductPublishConsumer.Consume").
 		Msg("Received Product event")
 
-	// insert/update document ke elasticsearch
+	// insert/update document ke opensearch
 	body, err := json.Marshal(ProductEvent)
 	if err != nil {
 		log.Error().
@@ -54,11 +54,11 @@ func (c ProductPublishConsumer) Consume(message *sarama.ConsumerMessage) error {
 		return err
 	}
 
-	res, err := c.esClient.Index(
+	res, err := c.opensearchClient.Index(
 		"products",
 		bytes.NewReader(body),
-		c.esClient.Index.WithContext(context.Background()),
-		c.esClient.Index.WithDocumentID(fmt.Sprintf("%d", ProductEvent.ID)),
+		c.opensearchClient.Index.WithContext(context.Background()),
+		c.opensearchClient.Index.WithDocumentID(fmt.Sprintf("%d", ProductEvent.ID)),
 	)
 
 	if err != nil {
@@ -66,7 +66,7 @@ func (c ProductPublishConsumer) Consume(message *sarama.ConsumerMessage) error {
 			Err(err).
 			Int64("product_id", ProductEvent.ID).
 			Str("source", "internal.adapter.message.ProductPublishConsumer.Consume").
-			Msg("Error indexing product to elasticsearch")
+			Msg("Error indexing product to opensearch")
 		return err
 	}
 
@@ -77,8 +77,8 @@ func (c ProductPublishConsumer) Consume(message *sarama.ConsumerMessage) error {
 			Str("status", res.Status()).
 			Int64("product_id", ProductEvent.ID).
 			Str("source", "internal.adapter.message.ProductPublishConsumer.Consume").
-			Msg("Elasticsearch indexing failed")
-		return fmt.Errorf("elasticsearch indexing failed")
+			Msg("Opensearch indexing failed")
+		return fmt.Errorf("opensearch indexing failed")
 	}
 
 	log.Info().
@@ -86,7 +86,7 @@ func (c ProductPublishConsumer) Consume(message *sarama.ConsumerMessage) error {
 		Int64("product_id", ProductEvent.ID).
 		Str("topic", c.cfg.Topic.ProductPublish).
 		Str("source", "internal.adapter.message.ProductPublishConsumer.Consume").
-		Msg("Success indexing product to elasticsearch")
+		Msg("Success indexing product to opensearch")
 
 	return nil
 }

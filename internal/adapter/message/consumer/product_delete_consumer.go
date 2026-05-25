@@ -8,19 +8,19 @@ import (
 	"strconv"
 
 	"github.com/IBM/sarama"
-	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/rs/zerolog/log"
 )
 
 type ProductDeleteConsumer struct {
-	cfg      *config.Config
-	esClient *elasticsearch.Client
+	cfg              *config.Config
+	opensearchClient *opensearch.Client
 }
 
-func NewProductDeleteConsumer(cfg *config.Config, esClient *elasticsearch.Client) *ProductDeleteConsumer {
+func NewProductDeleteConsumer(cfg *config.Config, opensearchClient *opensearch.Client) *ProductDeleteConsumer {
 	return &ProductDeleteConsumer{
-		cfg:      cfg,
-		esClient: esClient,
+		cfg:              cfg,
+		opensearchClient: opensearchClient,
 	}
 }
 
@@ -42,10 +42,10 @@ func (c ProductDeleteConsumer) Consume(message *sarama.ConsumerMessage) error {
 		Str("source", "internal.adapter.message.ProductDeleteConsumer.Consume").
 		Msg("Received Delete Product event")
 
-	res, err := c.esClient.Delete(
+	res, err := c.opensearchClient.Delete(
 		"products",
 		strconv.Itoa(int(DeleteProductEvent.ProductID)),
-		c.esClient.Delete.WithRefresh("true"),
+		c.opensearchClient.Delete.WithRefresh("true"),
 	)
 
 	if err != nil {
@@ -53,7 +53,7 @@ func (c ProductDeleteConsumer) Consume(message *sarama.ConsumerMessage) error {
 			Err(err).
 			Int64("product_id", DeleteProductEvent.ProductID).
 			Str("source", "internal.adapter.message.ProductDeleteConsumer.Consume").
-			Msg("failed delete product document from elasticsearch")
+			Msg("failed delete product document from opensearch")
 
 		return err
 	}
@@ -67,7 +67,7 @@ func (c ProductDeleteConsumer) Consume(message *sarama.ConsumerMessage) error {
 			Err(err).
 			Int64("product_id", DeleteProductEvent.ProductID).
 			Str("source", "internal.adapter.message.ProductDeleteConsumer.Consume").
-			Msg("elasticsearch returned delete error")
+			Msg("opensearch returned delete error")
 
 		return err
 	}
@@ -75,7 +75,7 @@ func (c ProductDeleteConsumer) Consume(message *sarama.ConsumerMessage) error {
 	log.Info().
 		Int64("product_id", DeleteProductEvent.ProductID).
 		Str("source", "internal.adapter.message.ProductDeleteConsumer.Consume").
-		Msg("success delete product document from elasticsearch")
+		Msg("success delete product document from opensearch")
 
 	return nil
 }

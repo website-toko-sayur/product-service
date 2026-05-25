@@ -50,12 +50,12 @@ func RunServer() {
 			Msg("failed connect to redis")
 	}
 
-	elastic, err := cfg.NewElastic()
+	opensearch, err := cfg.NewOpenSearch()
 	if err != nil {
 		log.Fatal().
 			Err(err).
 			Str("source", "internal.app.RunServer").
-			Msg("failed connect to elastic")
+			Msg("failed connect to opensearch")
 	}
 
 	producer := cfg.NewKafkaProducer()
@@ -74,7 +74,7 @@ func RunServer() {
 
 	cartRepo := repository.NewCartRepository(redis)
 	categoryRepo := repository.NewCategoryRepository(db.DB)
-	productRepo := repository.NewProductRepository(db.DB, elastic)
+	productRepo := repository.NewProductRepository(db.DB, opensearch)
 
 	jwtService := service.NewJwtService(cfg)
 	cartService := service.NewCartService(cartRepo)

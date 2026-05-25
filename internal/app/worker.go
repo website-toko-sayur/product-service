@@ -55,7 +55,7 @@ func RunProductDeleteConsumer(cfg *config.Config, ctx context.Context) {
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product delete consumer")
 
-	esClient, err := cfg.NewElastic()
+	opensearchClient, err := cfg.NewOpenSearch()
 	if err != nil {
 		log.Fatal().
 			Err(err).
@@ -64,7 +64,7 @@ func RunProductDeleteConsumer(cfg *config.Config, ctx context.Context) {
 	}
 
 	productDeleteConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(cfg, esClient)
+	productDeleteHandler := messagingconsumer.NewProductDeleteConsumer(cfg, opensearchClient)
 	messagingconsumer.ConsumeTopic(ctx, productDeleteConsumerGroup, cfg.Topic.ProductDelete, productDeleteHandler.Consume)
 }
 
@@ -73,7 +73,7 @@ func RunProductPublishConsumer(cfg *config.Config, ctx context.Context) {
 		Str("source", "internal.app.RunWorker").
 		Msg("setup product publish consumer")
 
-	esClient, err := cfg.NewElastic()
+	opensearchClient, err := cfg.NewOpenSearch()
 	if err != nil {
 		log.Fatal().
 			Err(err).
@@ -82,6 +82,6 @@ func RunProductPublishConsumer(cfg *config.Config, ctx context.Context) {
 	}
 
 	productPublishConsumerGroup := cfg.NewKafkaConsumerGroup()
-	productPublishHandler := messagingconsumer.NewProductPublishConsumer(cfg, esClient)
+	productPublishHandler := messagingconsumer.NewProductPublishConsumer(cfg, opensearchClient)
 	messagingconsumer.ConsumeTopic(ctx, productPublishConsumerGroup, cfg.Topic.ProductDelete, productPublishHandler.Consume)
 }

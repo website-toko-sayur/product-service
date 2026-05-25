@@ -10,14 +10,14 @@ import (
 	"product-service/internal/core/domain/model"
 	"strings"
 
-	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
 type productRepository struct {
-	db       *gorm.DB
-	esClient *elasticsearch.Client
+	db               *gorm.DB
+	opensearchClient *opensearch.Client
 }
 
 type ProductRepositoryInterface interface {
@@ -29,10 +29,10 @@ type ProductRepositoryInterface interface {
 	SearchProducts(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error)
 }
 
-func NewProductRepository(db *gorm.DB, esClient *elasticsearch.Client) ProductRepositoryInterface {
+func NewProductRepository(db *gorm.DB, opensearchClient *opensearch.Client) ProductRepositoryInterface {
 	return &productRepository{
-		db:       db,
-		esClient: esClient,
+		db:               db,
+		opensearchClient: opensearchClient,
 	}
 }
 
@@ -519,10 +519,10 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 		sortQuery,
 	)
 
-	res, err := p.esClient.Search(
-		p.esClient.Search.WithContext(ctx),
-		p.esClient.Search.WithIndex("products"),
-		p.esClient.Search.WithBody(strings.NewReader(mainQuery)),
+	res, err := p.opensearchClient.Search(
+		p.opensearchClient.Search.WithContext(ctx),
+		p.opensearchClient.Search.WithIndex("products"),
+		p.opensearchClient.Search.WithBody(strings.NewReader(mainQuery)),
 	)
 
 	if err != nil {

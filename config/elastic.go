@@ -1,43 +1,54 @@
 package config
 
 import (
-	"github.com/elastic/go-elasticsearch/v7"
+	"net/http"
+
+	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/rs/zerolog/log"
 )
 
-func (cfg Config) NewElastic() (*elasticsearch.Client, error) {
-	es, err := elasticsearch.NewClient(elasticsearch.Config{
+func (cfg Config) NewOpenSearch() (*opensearch.Client, error) {
+	client, err := opensearch.NewClient(opensearch.Config{
 		Addresses: []string{
-			cfg.ElasticSearch.Host,
+			cfg.OpenSearch.Host,
 		},
-		// Username: cfg.ElasticSearch.Username,
-		// Password: cfg.ElasticSearch.Password,
+		Username: cfg.OpenSearch.Username,
+		Password: cfg.OpenSearch.Password,
 	})
 
 	if err != nil {
 		log.Error().
 			Err(err).
-			Str("source", "internal.infrastructure.elasticsearch.NewElastic").
-			Msg("failed to initialize elasticsearch client")
+			Str("source", "internal.infrastructure.opensearch.NewOpenSearch").
+			Msg("failed to initialize opensearch client")
 
 		return nil, err
 	}
 
-	info, err := es.Info()
+	res, err := client.Info()
 	if err != nil {
 		log.Error().
 			Err(err).
-			Str("source", "internal.infrastructure.elasticsearch.NewElastic").
-			Msg("failed to connect to elasticsearch")
+			Str("source", "internal.infrastructure.opensearch.NewOpenSearch").
+			Msg("failed connect to opensearch")
+
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		log.Error().
+			Int("status_code", res.StatusCode).
+			Str("source", "internal.infrastructure.opensearch.NewOpenSearch").
+			Msg("opensearch returned non-200 status")
 
 		return nil, err
 	}
 
-	defer info.Body.Close()
-
 	log.Info().
-		Str("source", "internal.infrastructure.elasticsearch.NewElastic").
-		Msg("success connect to elasticsearch")
+		Str("host", cfg.OpenSearch.Host).
+		Str("source", "internal.infrastructure.opensearch.NewOpenSearch").
+		Msg("success connect to opensearch")
 
-	return es, nil
+	return client, nil
 }
