@@ -32,7 +32,8 @@ func NewUploadImage(
 	}
 
 	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
-	app.Post("/admin/image-upload", res.UploadImage, mid.CheckToken())
+	adminGroup := app.Group("/admin", mid.CheckToken())
+	adminGroup.Post("/image-upload", res.UploadImage)
 
 	return res
 }
