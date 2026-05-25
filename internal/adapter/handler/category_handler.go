@@ -390,7 +390,7 @@ func (ch *categoryHandler) GetAllAdmin(c fiber.Ctx) error {
 		page = 1
 	}
 
-	perPage, err := conv.StringToInt64(c.Query("perPage", "10"))
+	perPage, err := conv.StringToInt64(c.Query("limit", "10"))
 	if err != nil || perPage <= 0 {
 		perPage = 10
 	}
