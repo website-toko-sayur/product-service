@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"product-service/config"
+	"product-service/internal/adapter"
 	"product-service/internal/adapter/handler/request"
 	"product-service/internal/adapter/handler/response"
 	"product-service/internal/core/domain/entity"
@@ -8,6 +10,7 @@ import (
 	"product-service/utils/conv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,7 +32,7 @@ type CategoryHandlerInterface interface {
 
 func NewCategoryHandler(
 	app *fiber.App,
-	categoryService service.CategoryServiceInterface
+	categoryService service.CategoryServiceInterface,
 	cfg *config.Config,
 	jwtService service.JwtServiceInterface,
 	redis *redis.Client,
@@ -39,18 +42,18 @@ func NewCategoryHandler(
 	}
 
 	categoryApp := app.Group("/categories")
-	categoryApp.Get("/home", category.GetAllHome)
-	categoryApp.Get("/shop", category.GetAllShop)
+	categoryApp.Get("/home", categoryHandler.GetAllHome)
+	categoryApp.Get("/shop", categoryHandler.GetAllShop)
 
 	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
 	adminGroup := app.Group("/admin", mid.CheckToken())
 
-	adminGroup.Get("/categories", category.GetAllAdmin)
-	adminGroup.Get("/categories/:id", category.GetByIDAdmin)
-	adminGroup.Get("/categories/:slug/slug", category.GetBySlugAdmin)
-	adminGroup.Post("/categories", category.Create)
-	adminGroup.Put("/categories/:id", category.Update)
-	adminGroup.Delete("/categories/:id", category.Delete)
+	adminGroup.Get("/categories", categoryHandler.GetAllAdmin)
+	adminGroup.Get("/categories/:id", categoryHandler.GetByIDAdmin)
+	adminGroup.Get("/categories/:slug/slug", categoryHandler.GetBySlugAdmin)
+	adminGroup.Post("/categories", categoryHandler.Create)
+	adminGroup.Put("/categories/:id", categoryHandler.Update)
+	adminGroup.Delete("/categories/:id", categoryHandler.Delete)
 
 	return categoryHandler
 }
