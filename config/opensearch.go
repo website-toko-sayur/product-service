@@ -45,10 +45,5 @@ func (cfg Config) NewOpenSearch() (*opensearch.Client, error) {
 		return nil, err
 	}
 
-	log.Info().
-		Str("host", cfg.OpenSearch.Host).
-		Str("source", "internal.infrastructure.opensearch.NewOpenSearch").
-		Msg("success connect to opensearch")
-
 	return client, nil
 }
