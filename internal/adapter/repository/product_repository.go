@@ -189,11 +189,6 @@ func (p *productRepository) Update(ctx context.Context, req entity.ProductEntity
 		return err
 	}
 
-	log.Info().
-		Int64("product_id", req.ID).
-		Str("source", "internal.adapter.productRepository.Update").
-		Msg("success update product")
-
 	return nil
 }
 
@@ -275,12 +270,6 @@ func (p *productRepository) Create(ctx context.Context, req entity.ProductEntity
 		return 0, err
 	}
 
-	log.Info().
-		Int64("product_id", modelProduct.ID).
-		Str("product_name", modelProduct.Name).
-		Str("source", "internal.adapter.productRepository.Create").
-		Msg("success create product")
-
 	return modelProduct.ID, nil
 }
 
@@ -341,11 +330,6 @@ func (p *productRepository) GetByID(ctx context.Context, productID int64) (*enti
 			CreatedAt:    val.CreatedAt,
 		})
 	}
-
-	log.Info().
-		Int64("product_id", productID).
-		Str("source", "internal.adapter.productRepository.GetByID").
-		Msg("success get product")
 
 	return &entity.ProductEntity{
 		ID:           modelProduct.ID,
@@ -634,13 +618,6 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 		products = append(products, product)
 	}
 
-	log.Info().
-		Int("total_data", totalData).
-		Int("total_page", totalPage).
-		Int("result_count", len(products)).
-		Str("source", "internal.adapter.productRepository.SearchProducts").
-		Msg("success search products")
-
 	return products, int64(totalData), int64(totalPage), nil
 }
 
@@ -713,13 +690,6 @@ func (p *productRepository) GetAll(ctx context.Context, query entity.QueryString
 			CreatedAt:    val.CreatedAt,
 		})
 	}
-
-	log.Info().
-		Int64("total_data", countData).
-		Int("total_page", totalPage).
-		Int("result_count", len(respProducts)).
-		Str("source", "internal.adapter.productRepository.GetAll").
-		Msg("success get products")
 
 	return respProducts, countData, int64(totalPage), nil
 }
