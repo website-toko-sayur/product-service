@@ -486,9 +486,7 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 
 	defer res.Body.Close()
 
-	if res.IsError() {
-		err = errors.New(res.String())
-
+	if err := helperSearch.ParseOpenSearchError(res); err != nil {
 		log.Error().
 			Err(err).
 			Str("source", "internal.adapter.productRepository.SearchProducts").
