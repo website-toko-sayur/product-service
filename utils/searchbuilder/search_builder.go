@@ -1,0 +1,47 @@
+package searchbuilder
+
+func MultiMatchQuery(query string, fields []string) map[string]interface{} {
+	return map[string]interface{}{
+		"multi_match": map[string]interface{}{
+			"query":  query,
+			"fields": fields,
+		},
+	}
+}
+
+func TermFilter(field string, value interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"term": map[string]interface{}{
+			field: value,
+		},
+	}
+}
+
+func RangeFilter(field string, gte interface{}, lte interface{}) map[string]interface{} {
+
+	rangeValue := map[string]interface{}{}
+
+	if gte != nil {
+		rangeValue["gte"] = gte
+	}
+
+	if lte != nil {
+		rangeValue["lte"] = lte
+	}
+
+	return map[string]interface{}{
+		"range": map[string]interface{}{
+			field: rangeValue,
+		},
+	}
+}
+
+func SortQuery(field string, order string) []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			field: map[string]interface{}{
+				"order": order,
+			},
+		},
+	}
+}

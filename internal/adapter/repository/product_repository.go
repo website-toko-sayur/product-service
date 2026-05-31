@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/domain/model"
+	helperSearch "product-service/utils/searchbuilder"
 	"strings"
 
 	"github.com/opensearch-project/opensearch-go/v2"
@@ -364,59 +366,10 @@ func (p *productRepository) GetByID(ctx context.Context, productID int64) (*enti
 		EndPrice:     5000000,
 		Search:       "iphone",
 	}
-
-## mainquery nya
-
-	{
-	  "from": 0,
-	  "size": 10,
-	  "query": {
-	    "bool": {
-	      "must": [
-	        {
-	          "multi_match": {
-	            "query": "iphone",
-	            "fields": [
-	              "name",
-	              "description",
-	              "category_name"
-	            ]
-	          }
-	        }
-	      ],
-	      "filter": [
-	        {
-	          "term": {
-	            "category_slug.keyword": "electronics"
-	          }
-	        },
-	        {
-	          "range": {
-	            "reguler_price": {
-	              "gte": 100000,
-	              "lte": 5000000
-	            }
-	          }
-	        }
-	      ]
-	    }
-	  },
-	  "sort": [
-	    {
-	      "created_at": "desc"
-	    }
-	  ]
-	}
 */
 func (p *productRepository) SearchProducts(ctx context.Context, query entity.QueryStringProduct) ([]entity.ProductEntity, int64, int64, error) {
-
-	var mainQueries []string
-	var filterQueries []string
-
-	// hitung offset pagination elasticsearch
 	from := (query.Page - 1) * query.Limit
 
-	// validate sortable fields supaya user tidak bisa inject field random
 	allowedSortFields := map[string]bool{
 		"id":            true,
 		"name":          true,
@@ -426,94 +379,107 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 		"stock":         true,
 	}
 
-	// gunakan whitelist field untuk sorting
-	// fallback ke "id" jika field tidak valid
 	sortField := "id"
 
 	if allowedSortFields[query.OrderBy] {
 		sortField = query.OrderBy
 	}
 
-	// determine sort order
 	sortOrder := "asc"
 
 	if strings.ToLower(query.OrderType) == "desc" {
 		sortOrder = "desc"
 	}
 
-	sortQuery := fmt.Sprintf(`{ "%s": "%s" }`, sortField, sortOrder)
+	mustQueries := []map[string]interface{}{}
+	filterQueries := []map[string]interface{}{}
 
+	// fulltext search
+	if query.Search != "" {
+		mustQueries = append(
+			mustQueries,
+			helperSearch.MultiMatchQuery(
+				query.Search,
+				[]string{
+					"name",
+					"description",
+					"category_name",
+				},
+			),
+		)
+	}
+
+	// category filter
 	if query.CategorySlug != "" {
 		filterQueries = append(
 			filterQueries,
-			fmt.Sprintf(
-				`{ "term": { "category_slug.keyword": "%s" } }`,
+			helperSearch.TermFilter(
+				"category_slug.keyword",
 				query.CategorySlug,
 			),
 		)
 	}
 
-	if query.StartPrice > 0 && query.EndPrice > 0 {
+	// price filter
+	if query.StartPrice > 0 || query.EndPrice > 0 {
+
+		var gte interface{}
+		var lte interface{}
+
+		if query.StartPrice > 0 {
+			gte = query.StartPrice
+		}
+
+		if query.EndPrice > 0 {
+			lte = query.EndPrice
+		}
+
 		filterQueries = append(
 			filterQueries,
-			fmt.Sprintf(
-				`{ "range": { "reguler_price": { "gte": %d, "lte": %d } } }`,
-				query.StartPrice,
-				query.EndPrice,
+			helperSearch.RangeFilter(
+				"reguler_price",
+				gte,
+				lte,
 			),
 		)
 	}
 
-	if query.Search != "" {
-		filterQueries = append(
-			mainQueries,
-			fmt.Sprintf(
-				`{
-					"multi_match": {
-						"query": %q,
-						"fields": ["name", "description", "category_name"]
-					}
-				}`,
-				query.Search,
-			),
-		)
-	}
-
-	mainQuery := fmt.Sprintf(`{
-		"from": %d,
-		"size": %d,
-		"query": {
-			"bool": {
-				"must": [
-					%s
-				],
-				"filter": [
-					%s
-				]
-			}
+	searchQuery := map[string]interface{}{
+		"from": from,
+		"size": query.Limit,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must":   mustQueries,
+				"filter": filterQueries,
+			},
 		},
-		"sort": [
-			%s
-		]
-	}`,
-		from,
-		query.Limit,
-		strings.Join(mainQueries, ","),
-		strings.Join(filterQueries, ","),
-		sortQuery,
-	)
+		"sort": helperSearch.SortQuery(
+			sortField,
+			sortOrder,
+		),
+	}
+
+	body, err := json.Marshal(searchQuery)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("source", "internal.adapter.productRepository.SearchProducts").
+			Msg("failed marshal search query")
+
+		return nil, 0, 0, err
+	}
 
 	res, err := p.opensearchClient.Search(
 		p.opensearchClient.Search.WithContext(ctx),
 		p.opensearchClient.Search.WithIndex("products"),
-		p.opensearchClient.Search.WithBody(strings.NewReader(mainQuery)),
+		p.opensearchClient.Search.WithBody(bytes.NewReader(body)),
 	)
 
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("source", "internal.adapter.productRepository.SearchProducts").
-			Msg("failed search products from elasticsearch")
+			Msg("failed search products")
 
 		return nil, 0, 0, err
 	}
@@ -526,38 +492,31 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 		log.Error().
 			Err(err).
 			Str("source", "internal.adapter.productRepository.SearchProducts").
-			Msg("elasticsearch returned search error")
+			Msg("opensearch returned error")
 
 		return nil, 0, 0, err
 	}
 
 	var result map[string]interface{}
 
-	err = json.NewDecoder(res.Body).Decode(&result)
-	if err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		log.Error().
 			Err(err).
 			Str("source", "internal.adapter.productRepository.SearchProducts").
-			Msg("failed decode elasticsearch response")
+			Msg("failed decode response")
 
 		return nil, 0, 0, err
 	}
 
 	hitsRoot, ok := result["hits"].(map[string]interface{})
 	if !ok {
-		log.Error().
-			Str("source", "internal.adapter.productRepository.SearchProducts").
-			Msg("invalid hits response from elasticsearch")
-
-		return nil, 0, 0, errors.New("invalid elasticsearch response")
+		return nil, 0, 0, errors.New("invalid hits response")
 	}
 
 	totalData := 0
 
-	totalMap, ok := hitsRoot["total"].(map[string]interface{})
-	if ok {
-		value, ok := totalMap["value"].(float64)
-		if ok {
+	if totalMap, ok := hitsRoot["total"].(map[string]interface{}); ok {
+		if value, ok := totalMap["value"].(float64); ok {
 			totalData = int(value)
 		}
 	}
@@ -572,11 +531,7 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 
 	hits, ok := hitsRoot["hits"].([]interface{})
 	if !ok {
-		log.Error().
-			Str("source", "internal.adapter.productRepository.SearchProducts").
-			Msg("invalid hits data from elasticsearch")
-
-		return nil, 0, 0, errors.New("invalid elasticsearch hits")
+		return nil, 0, 0, errors.New("invalid hits data")
 	}
 
 	products := []entity.ProductEntity{}
@@ -595,23 +550,12 @@ func (p *productRepository) SearchProducts(ctx context.Context, query entity.Que
 
 		data, err := json.Marshal(source)
 		if err != nil {
-			log.Error().
-				Err(err).
-				Str("source", "internal.adapter.productRepository.SearchProducts").
-				Msg("failed marshal product search source")
-
 			continue
 		}
 
 		var product entity.ProductEntity
 
-		err = json.Unmarshal(data, &product)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("source", "internal.adapter.productRepository.SearchProducts").
-				Msg("failed unmarshal product search result")
-
+		if err := json.Unmarshal(data, &product); err != nil {
 			continue
 		}
 
