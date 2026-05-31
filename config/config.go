@@ -17,6 +17,8 @@ type App struct {
 
 	GatewaySecretKey  string `json:"gateway_secret_key"`
 	RequestApiGAteway string `json:"request_api_gateway"`
+
+	InternalSecretKey string `json:"internal_secret_key"`
 }
 
 type PsqlDB struct {
@@ -86,6 +88,8 @@ func NewConfig() *Config {
 
 			GatewaySecretKey:  viper.GetString("GATEWAY_SECRET_KEY"),
 			RequestApiGAteway: viper.GetString("REQUEST_API_GATEWAY"),
+
+			InternalSecretKey: viper.GetString("INTERNAL_SECRET_KEY"),
 		},
 		Psql: PsqlDB{
 			Host:      viper.GetString("DATABASE_HOST"),

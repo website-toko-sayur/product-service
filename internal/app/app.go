@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	middlewareGateway "product-service/internal/middleware"
-
 	"github.com/gofiber/fiber/v3"
 	fiberCors "github.com/gofiber/fiber/v3/middleware/cors"
 	fiberRecover "github.com/gofiber/fiber/v3/middleware/recover"
@@ -100,7 +98,6 @@ func RunServer() {
 
 	app.Use(fiberRecover.New())
 	app.Use(fiberCors.New())
-	app.Use(middlewareGateway.GatewayValidationMiddleware(cfg))
 
 	app.Get("/api/check", func(c fiber.Ctx) error {
 		return c.SendString("OK")

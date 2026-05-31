@@ -8,6 +8,7 @@ import (
 	"product-service/internal/adapter/handler/response"
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/service"
+	middleware "product-service/internal/middleware"
 	"product-service/utils/conv"
 
 	"github.com/gofiber/fiber/v3"
@@ -41,8 +42,9 @@ func NewCartHandler(
 	}
 
 	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
+	midGateway := middleware.GatewayValidationMiddleware(cfg)
 
-	authGroup := app.Group("/auth", mid.CheckToken())
+	authGroup := app.Group("/auth", midGateway, mid.CheckToken())
 
 	authGroup.Post("/cart", cartHandler.AddToCart)
 	authGroup.Get("/cart", cartHandler.GetCart)

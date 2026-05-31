@@ -7,6 +7,7 @@ import (
 	"product-service/internal/adapter/handler/response"
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/service"
+	middleware "product-service/internal/middleware"
 	"product-service/utils/conv"
 	"strings"
 
@@ -42,19 +43,27 @@ func NewProductHandler(
 		productService: productService,
 	}
 
-	homeProduct := app.Group("/products")
+	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
+	midGateway := middleware.GatewayValidationMiddleware(cfg)
+	midInternal := middleware.InternalValidationMiddleware(cfg)
+
+	// products route via gateway
+	homeProduct := app.Group("/products", midGateway)
 	homeProduct.Get("/home", productHandler.GetAllHome)
 	homeProduct.Get("/shop", productHandler.GetAllShop)
 	homeProduct.Get("/home/:id", productHandler.GetDetailHome)
 
-	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
-
-	adminGroup := app.Group("/admin", mid.CheckToken())
+	// admin route via gateway + jwt
+	adminGroup := app.Group("/admin", midGateway, mid.CheckToken())
 	adminGroup.Get("/products", productHandler.GetAllAdmin)
 	adminGroup.Post("/products", productHandler.CreateAdmin)
 	adminGroup.Get("/products/:id", productHandler.GetByIDAdmin)
 	adminGroup.Put("/products/:id", productHandler.EditAdmin)
 	adminGroup.Delete("/products/:id", productHandler.DeleteAdmin)
+
+	// internal route
+	internalGroup := app.Group("/internal", midInternal)
+	internalGroup.Get("/products/:id", productHandler.GetByID)
 
 	return productHandler
 }
@@ -642,5 +651,81 @@ func (p *productHandler) GetAllAdmin(c fiber.Ctx) error {
 			TotalPage:  totalPage,
 			PerPage:    perPage,
 		},
+	})
+}
+
+func (p *productHandler) GetByID(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	idStr := c.Params("id")
+	if idStr == "" {
+		log.Error().
+			Str("source", "internal.adapter.productHandler.GetByID").
+			Msg("id is required")
+
+		return fiber.NewError(fiber.StatusBadRequest, "id is required")
+	}
+
+	id, err := conv.StringToInt64(idStr)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("id", idStr).
+			Str("source", "internal.adapter.productHandler.GetByID").
+			Msg("failed convert id")
+
+		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
+	}
+
+	result, err := p.productService.GetByID(ctx, id)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("product_id", id).
+			Str("source", "internal.adapter.productHandler.GetByID").
+			Msg("failed get product by id")
+
+		if err.Error() == "404" {
+			return fiber.NewError(fiber.StatusNotFound, "data not found")
+		}
+
+		return err
+	}
+
+	var responseChilds []response.ProductChildResponse
+
+	if len(result.Child) > 0 {
+		for _, child := range result.Child {
+			responseChilds = append(responseChilds, response.ProductChildResponse{
+				ID:           child.ID,
+				SalePrice:    int64(child.SalePrice),
+				RegulerPrice: int64(child.RegulerPrice),
+				Weight:       child.Weight,
+				Stock:        child.Stock,
+			})
+		}
+	}
+
+	respProduct := response.ProductDetailResponse{
+		ID:                 result.ID,
+		ProductName:        result.Name,
+		ParentID:           conv.Int64PointerToInt64(result.ParentID),
+		ProductImage:       result.Image,
+		CategorySlug:       result.CategorySlug,
+		CategoryName:       result.CategoryName,
+		ProductStatus:      result.Status,
+		ProductDescription: result.Description,
+		SalePrice:          int64(result.SalePrice),
+		RegulerPrice:       int64(result.RegulerPrice),
+		Unit:               result.Unit,
+		Weight:             result.Weight,
+		Stock:              result.Stock,
+		CreatedAt:          result.CreatedAt,
+		Child:              responseChilds,
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.DefaultResponse{
+		Message: "success",
+		Data:    respProduct,
 	})
 }

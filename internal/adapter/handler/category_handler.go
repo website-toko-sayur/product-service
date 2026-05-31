@@ -7,6 +7,7 @@ import (
 	"product-service/internal/adapter/handler/response"
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/service"
+	middleware "product-service/internal/middleware"
 	"product-service/utils/conv"
 
 	"github.com/gofiber/fiber/v3"
@@ -41,13 +42,14 @@ func NewCategoryHandler(
 		categoryService: categoryService,
 	}
 
-	categoryApp := app.Group("/categories")
+	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
+	midGateway := middleware.GatewayValidationMiddleware(cfg)
+
+	categoryApp := app.Group("/categories", midGateway)
 	categoryApp.Get("/home", categoryHandler.GetAllHome)
 	categoryApp.Get("/shop", categoryHandler.GetAllShop)
 
-	mid := adapter.NewMiddlewareAdapter(cfg, jwtService, redis)
-	adminGroup := app.Group("/admin", mid.CheckToken())
-
+	adminGroup := app.Group("/admin", midGateway, mid.CheckToken())
 	adminGroup.Get("/categories", categoryHandler.GetAllAdmin)
 	adminGroup.Get("/categories/:id", categoryHandler.GetByIDAdmin)
 	adminGroup.Get("/categories/:slug/slug", categoryHandler.GetBySlugAdmin)
