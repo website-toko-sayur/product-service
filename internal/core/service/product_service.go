@@ -8,7 +8,6 @@ import (
 	"product-service/internal/core/domain/entity"
 	"product-service/internal/core/domain/model"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
 )
 
@@ -92,7 +91,7 @@ func (p *productService) Create(ctx context.Context, req entity.ProductEntity) e
 				Err(err).
 				Str("source", "internal.core.productService.Create").
 				Msg("Failed publish product publish event")
-			return fiber.ErrInternalServerError
+			return err
 		}
 	} else {
 		log.Info().
@@ -126,7 +125,7 @@ func (p *productService) Delete(ctx context.Context, productID int64) error {
 				Err(err).
 				Str("source", "internal.core.productService.Delete").
 				Msg("Failed publish product delete event")
-			return fiber.ErrInternalServerError
+			return err
 		}
 	} else {
 		log.Info().
@@ -223,7 +222,7 @@ func (p *productService) Update(ctx context.Context, req entity.ProductEntity) e
 				Err(err).
 				Str("source", "internal.core.productService.Update").
 				Msg("Failed publish product publihs event")
-			return fiber.ErrInternalServerError
+			return err
 		}
 	} else {
 		log.Info().
