@@ -544,6 +544,7 @@ func (p *productHandler) GetByIDAdmin(c fiber.Ctx) error {
 				RegulerPrice: int64(child.RegulerPrice),
 				Weight:       child.Weight,
 				Stock:        child.Stock,
+				ProductImage: child.Image,
 			})
 		}
 	}
@@ -638,6 +639,7 @@ func (p *productHandler) GetAllAdmin(c fiber.Ctx) error {
 			CategoryName:  product.CategoryName,
 			ProductStatus: product.Status,
 			SalePrice:     int64(product.SalePrice),
+			RegulerPrice:  int64(product.RegulerPrice),
 			CreatedAt:     product.CreatedAt,
 		})
 	}

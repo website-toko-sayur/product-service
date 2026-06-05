@@ -10,6 +10,7 @@ type ProductListResponse struct {
 	CategoryName  string    `json:"category_name"`
 	ProductStatus string    `json:"product_status"`
 	SalePrice     int64     `json:"sale_price"`
+	RegulerPrice  int64     `json:"reguler_price"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -32,11 +33,12 @@ type ProductDetailResponse struct {
 }
 
 type ProductChildResponse struct {
-	ID           int64 `json:"id"`
-	Weight       int   `json:"weight"`
-	Stock        int   `json:"stock"`
-	RegulerPrice int64 `json:"reguler_price"`
-	SalePrice    int64 `json:"sale_price"`
+	ID           int64  `json:"id"`
+	Weight       int    `json:"weight"`
+	Stock        int    `json:"stock"`
+	RegulerPrice int64  `json:"reguler_price"`
+	SalePrice    int64  `json:"sale_price"`
+	ProductImage string `json:"product_image"`
 }
 
 type ProductHomeListResponse struct {
